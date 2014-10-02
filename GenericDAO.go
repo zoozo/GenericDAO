@@ -27,7 +27,7 @@ func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
 func (dao GenericDAO) GetDB() *sql.DB { //{{{
 	return dao.db
 }                                                                             //}}}
-func (dao GenericDAO) setRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
+func (dao GenericDAO) SetRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
 	columns, _ := rows.Columns()
 	count := len(columns)
 	values := make([]interface{}, count)
@@ -244,7 +244,7 @@ func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //
 	if err != nil {
 		return false, err
 	}
-	ret := dao.setRow(rows)
+	ret := dao.SetRow(rows)
 	if len(ret) <= 0 {
 		return false, nil
 	}
@@ -280,7 +280,7 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	if err != nil {
 		return false, err
 	}
-	ret := dao.setRow(rows)
+	ret := dao.SetRow(rows)
 	if len(ret) <= 0 {
 		return false, nil
 	}
@@ -299,8 +299,8 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 func (dao GenericDAO) SelectAllList(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
 	sql := "select * "
 	return dao.SelectList(sql, table, conditions, nil, orders, sort)
-}                                                                                                                                                                           //}}}
-func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+}                                                                                                                                                                                            //}}}
+func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
 	sqlstr += " from " + table
 
 	var sql_conditions, sql_orders, sql_groups []string
@@ -334,6 +334,12 @@ func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]int
 	if sort != "" {
 		sqlstr += " " + sort
 	}
+	if len(limit) == 1 {
+		sqlstr += " limit " + limit[0]
+	} else if len(limit) == 2 {
+		sqlstr += " limit " + limit[1] + "," + limit[0]
+	}
+
 	//log.Println(sqlstr)
 	stmt, err := dao.db.Prepare(sqlstr)
 
@@ -348,7 +354,7 @@ func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]int
 	if err != nil {
 		return nil, err
 	}
-	ret = dao.setRow(rows)
+	ret = dao.SetRow(rows)
 
 	return ret, nil
 } //}}}
