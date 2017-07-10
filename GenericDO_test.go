@@ -55,7 +55,7 @@ func TestGetSelectSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.SetPKey("column_b", 2)
-	ret := getSelectSQL(do)
+	ret, _ := getSelectSQL(do)
 	t.Log(ret)
 	if ret == "select * from table where column_a = ?  and column_b = ? " {
 		t.Log("GetSelectSQL Testing OK")
@@ -68,11 +68,37 @@ func TestInsertSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.Set("column_b", 2)
-	ret := getInsertSQL(do)
-	t.Log(ret)
+	ret, _ := getInsertSQL(do)
+	t.Log("[" + ret + "]")
 	if ret == "insert into table (column_a,column_b) values (?,?)" {
 		t.Log("GetInsertSQL Testing OK")
 	} else {
 		t.Error("GetInsertSQL Testing fail!!")
+	}
+}                                  //}}}
+func TestUpdateSQL(t *testing.T) { //{{{
+	do := new(GenericDO)
+	do.Init("table")
+	do.SetPKey("column_a", "a")
+	do.Set("column_b", 2)
+	ret, _ := getUpdateSQL(do)
+	t.Log(ret)
+	if ret == "update table set column_b = ? where column_a = ?" {
+		t.Log("GetUpdateSQL Testing OK")
+	} else {
+		t.Error("GetUpdateSQL Testing fail!!")
+	}
+}                                  //}}}
+func TestDeleteSQL(t *testing.T) { //{{{
+	do := new(GenericDO)
+	do.Init("table")
+	do.SetPKey("column_a", "a")
+	do.SetPKey("column_b", 2)
+	ret, _ := getDeleteSQL(do)
+	t.Log(ret)
+	if ret == "delete from table where column_a = ? and column_b = ?" {
+		t.Log("GetDeleteSQL Testing OK")
+	} else {
+		t.Error("GetDeleteSQL Testing fail!!")
 	}
 } //}}}
