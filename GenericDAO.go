@@ -3,7 +3,7 @@ package zdao
 import (
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
-	//"log"
+	"log"
 	"strings"
 )
 
@@ -30,6 +30,42 @@ func (dao *GenericDAO) NewDB(user, password, ip, port string) error {
 	dao.db, err = sql.Open("mysql", user+":"+password+"@tcp("+ip+":"+port+")/pms?charset=utf8")
 	return err
 }
+func (dao *GenericDAO) Init(db *sql.DB) { //{{{
+	dao.db = db
+}                                                 //}}}
+func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
+	return dao.db.Begin()
+}                                                                             //}}}
+func (dao GenericDAO) setRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
+	columns, _ := rows.Columns()
+	count := len(columns)
+	values := make([]interface{}, count)
+	valuePtrs := make([]interface{}, count)
+	for rows.Next() {
+		valuePtrs[0] = &values[0]
+		for i, _ := range columns {
+			valuePtrs[i] = &values[i]
+		}
+		rows.Scan(valuePtrs...)
+
+		entry := make(map[string]interface{})
+		for i, col := range columns {
+			var v interface{}
+			val := values[i]
+			b, ok := val.([]byte)
+			if ok {
+				v = string(b)
+			} else {
+				v = val
+			}
+			entry[col] = v
+		}
+		ret = append(ret, entry)
+	}
+
+	return ret
+} //}}}
+
 func getInsertSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "insert into " + do.GetTable()
 	data := do.GetDelta()
@@ -89,42 +125,6 @@ func getSelectSQL(do IGenericDO) (string, []string) { //{{{
 	}
 	sql += strings.Join(condition, " and ")
 	return sql, values
-}                                         //}}}
-func (dao *GenericDAO) Init(db *sql.DB) { //{{{
-	dao.db = db
-} //}}}
-func (dao *GenericDAO) Begin() (*sql.Tx, error) {
-	return dao.db.Begin()
-
-}
-func (dao GenericDAO) setRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
-	columns, _ := rows.Columns()
-	count := len(columns)
-	values := make([]interface{}, count)
-	valuePtrs := make([]interface{}, count)
-	for rows.Next() {
-		valuePtrs[0] = &values[0]
-		for i, _ := range columns {
-			valuePtrs[i] = &values[i]
-		}
-		rows.Scan(valuePtrs...)
-
-		entry := make(map[string]interface{})
-		for i, col := range columns {
-			var v interface{}
-			val := values[i]
-			b, ok := val.([]byte)
-			if ok {
-				v = string(b)
-			} else {
-				v = val
-			}
-			entry[col] = v
-		}
-		ret = append(ret, entry)
-	}
-
-	return ret
 }                                                                       //}}}
 func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
 	sql, values := getInsertSQL(do)
@@ -232,4 +232,49 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	stmt.Close()
 
 	return true, nil
+}                                                                                                                                                          //}}}
+func (dao GenericDAO) SelectList(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, er error) { //{{{
+	sqlstr := "select * from " + table
+
+	var sql_conditions []string
+	var sql_orders []string
+	var args []interface{}
+	if len(conditions) > 0 {
+		for k, v := range conditions {
+			sql_conditions = append(sql_conditions, k+" = ?")
+			args = append(args, v)
+		}
+	}
+	if len(orders) > 0 {
+		for _, v := range orders {
+			sql_orders = append(sql_orders, v)
+		}
+	}
+	if len(sql_conditions) > 0 {
+		sqlstr += " where " + strings.Join(sql_conditions, " and ")
+	}
+	if len(sql_orders) > 0 {
+		sqlstr += " order by " + strings.Join(sql_orders, ",")
+	}
+
+	if sort != "" {
+		sqlstr += " " + sort
+	}
+	log.Println(sqlstr)
+	stmt, err := dao.db.Prepare(sqlstr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var rows *sql.Rows
+	rows, err = stmt.Query(args...)
+	defer stmt.Close()
+
+	if err != nil {
+		return nil, err
+	}
+	ret = dao.setRow(rows)
+
+	return ret, nil
 } //}}}
