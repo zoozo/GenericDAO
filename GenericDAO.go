@@ -3,7 +3,7 @@ package zdao
 import (
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
-	"log"
+	//"log"
 	"strings"
 )
 
@@ -22,14 +22,18 @@ type GenericDAO struct {
 	db *sql.DB
 }
 
+func (dao GenericDAO) GetDB() *sql.DB { //{{{
+	return dao.db
+} //}}}
+
 func (dao *GenericDAO) SetDB(db *sql.DB) {
 	dao.db = db
 }
-func (dao *GenericDAO) NewDB(user, password, ip, port string) error {
+func (dao *GenericDAO) NewDB(user, password, ip, port string) error { //{{{
 	var err error
 	dao.db, err = sql.Open("mysql", user+":"+password+"@tcp("+ip+":"+port+")/pms?charset=utf8")
 	return err
-}
+}                                         //}}}
 func (dao *GenericDAO) Init(db *sql.DB) { //{{{
 	dao.db = db
 }                                                 //}}}
@@ -79,6 +83,17 @@ func getInsertSQL(do IGenericDO) (string, []string) { //{{{
 
 	return sql, values
 }                                                     //}}}
+func getInsertAllSQL(table string, size int) string { //{{{
+	sql := "insert into " + table
+
+	var columns []string
+	for i := 0; i < size; i++ {
+		columns = append(columns, "?")
+	}
+	sql += " values (" + strings.Join(columns, ",") + ")"
+
+	return sql
+}                                                     //}}}
 func getUpdateSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "update " + do.GetTable()
 	sql += " set "
@@ -125,13 +140,30 @@ func getSelectSQL(do IGenericDO) (string, []string) { //{{{
 	}
 	sql += strings.Join(condition, " and ")
 	return sql, values
-}                                                                       //}}}
-func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
+}                                                                                              //}}}
+func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (int64, error) { //{{{
+	sql := getInsertAllSQL(table, len(data))
+	stmt, err := tx.Prepare(sql)
+
+	if err != nil {
+		return 0, err
+	}
+
+	result, err := stmt.Exec(data...)
+	count, _ := result.RowsAffected()
+	defer stmt.Close()
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}                                                                        //}}}
+func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, values := getInsertSQL(do)
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	data := do.GetData()
@@ -140,22 +172,22 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
 	for _, v := range values {
 		args = append(args, data[v])
 	}
-	_, err = stmt.Exec(args...)
+	result, err := stmt.Exec(args...)
+	count, _ := result.RowsAffected()
+	defer stmt.Close()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
-	stmt.Close()
-
-	return true, nil
-}                                                                       //}}}
-func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
+	return count, nil
+}                                                                        //}}}
+func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, columns := getUpdateSQL(do)
 
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	data := do.GetDelta()
@@ -164,22 +196,24 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
 	for _, v := range columns {
 		args = append(args, data[v])
 	}
-	_, err = stmt.Exec(args...)
+	result, err := stmt.Exec(args...)
+	defer stmt.Close()
+
+	count, _ := result.RowsAffected()
+
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
-	stmt.Close()
-
-	return true, nil
-}                                                                       //}}}
-func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
+	return count, nil
+}                                                                        //}}}
+func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, columns := getDeleteSQL(do)
 
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	data := do.GetPKeys()
@@ -188,14 +222,16 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
 	for _, v := range columns {
 		args = append(args, data[v])
 	}
-	_, err = stmt.Exec(args...)
+	result, err := stmt.Exec(args...)
+	defer stmt.Close()
+
+	count, _ := result.RowsAffected()
+
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
-	stmt.Close()
-
-	return true, nil
+	return count, nil
 }                                                           //}}}
 func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	sqlstr, values := getSelectSQL(do)
@@ -232,17 +268,25 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	stmt.Close()
 
 	return true, nil
-}                                                                                                                                                          //}}}
-func (dao GenericDAO) SelectList(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, er error) { //{{{
-	sqlstr := "select * from " + table
+}                                                                                                                                                              //}}}
+func (dao GenericDAO) SelectAllList(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+	sql := "select * "
+	return dao.SelectList(sql, table, conditions, nil, orders, sort)
+}                                                                                                                                                                           //}}}
+func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+	sqlstr += " from " + table
 
-	var sql_conditions []string
-	var sql_orders []string
+	var sql_conditions, sql_orders, sql_groups []string
 	var args []interface{}
 	if len(conditions) > 0 {
 		for k, v := range conditions {
 			sql_conditions = append(sql_conditions, k+" = ?")
 			args = append(args, v)
+		}
+	}
+	if len(groups) > 0 {
+		for _, v := range groups {
+			sql_groups = append(sql_groups, v)
 		}
 	}
 	if len(orders) > 0 {
@@ -253,6 +297,9 @@ func (dao GenericDAO) SelectList(table string, conditions map[string]interface{}
 	if len(sql_conditions) > 0 {
 		sqlstr += " where " + strings.Join(sql_conditions, " and ")
 	}
+	if len(sql_groups) > 0 {
+		sqlstr += " group by " + strings.Join(sql_groups, ",")
+	}
 	if len(sql_orders) > 0 {
 		sqlstr += " order by " + strings.Join(sql_orders, ",")
 	}
@@ -260,7 +307,7 @@ func (dao GenericDAO) SelectList(table string, conditions map[string]interface{}
 	if sort != "" {
 		sqlstr += " " + sort
 	}
-	log.Println(sqlstr)
+	//log.Println(sqlstr)
 	stmt, err := dao.db.Prepare(sqlstr)
 
 	if err != nil {
