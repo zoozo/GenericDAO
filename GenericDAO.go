@@ -201,6 +201,7 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, columns := GetDeleteSQL(do)
 
+	//log.Println(sql)
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
@@ -209,6 +210,7 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 
 	data := do.GetPKeys()
 	var args []interface{}
+	//log.Println(data)
 
 	for _, v := range columns {
 		args = append(args, data[v])
