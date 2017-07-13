@@ -22,23 +22,14 @@ type GenericDAO struct {
 	db *sql.DB
 }
 
-func (dao GenericDAO) GetDB() *sql.DB { //{{{
-	return dao.db
-} //}}}
-
-func (dao *GenericDAO) SetDB(db *sql.DB) {
-	dao.db = db
-}
-func (dao *GenericDAO) NewDB(user, password, ip, port string) error { //{{{
-	var err error
-	dao.db, err = sql.Open("mysql", user+":"+password+"@tcp("+ip+":"+port+")/pms?charset=utf8")
-	return err
-}                                         //}}}
-func (dao *GenericDAO) Init(db *sql.DB) { //{{{
+func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
 	dao.db = db
 }                                                 //}}}
 func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
 	return dao.db.Begin()
+}                                       //}}}
+func (dao GenericDAO) GetDB() *sql.DB { //{{{
+	return dao.db
 }                                                                             //}}}
 func (dao GenericDAO) setRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
 	columns, _ := rows.Columns()
