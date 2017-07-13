@@ -70,7 +70,7 @@ func (dao GenericDAO) setRow(rows *sql.Rows) (ret []map[string]interface{}) { //
 	return ret
 } //}}}
 
-func getInsertSQL(do IGenericDO) (string, []string) { //{{{
+func GetInsertSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "insert into " + do.GetTable()
 	data := do.GetDelta()
 
@@ -83,7 +83,7 @@ func getInsertSQL(do IGenericDO) (string, []string) { //{{{
 
 	return sql, values
 }                                                     //}}}
-func getInsertAllSQL(table string, size int) string { //{{{
+func GetInsertAllSQL(table string, size int) string { //{{{
 	sql := "insert into " + table
 
 	var columns []string
@@ -94,7 +94,7 @@ func getInsertAllSQL(table string, size int) string { //{{{
 
 	return sql
 }                                                     //}}}
-func getUpdateSQL(do IGenericDO) (string, []string) { //{{{
+func GetUpdateSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "update " + do.GetTable()
 	sql += " set "
 	var columns, values []string
@@ -116,7 +116,7 @@ func getUpdateSQL(do IGenericDO) (string, []string) { //{{{
 
 	return sql, values
 }                                                     //}}}
-func getDeleteSQL(do IGenericDO) (string, []string) { //{{{
+func GetDeleteSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "delete from " + do.GetTable() + " where "
 	var columns, values []string
 
@@ -129,7 +129,7 @@ func getDeleteSQL(do IGenericDO) (string, []string) { //{{{
 
 	return sql, values
 }                                                     //}}}
-func getSelectSQL(do IGenericDO) (string, []string) { //{{{
+func GetSelectSQL(do IGenericDO) (string, []string) { //{{{
 	sql := "select * from " + do.GetTable() + " where "
 	pkeys := do.GetPKeys()
 
@@ -142,7 +142,7 @@ func getSelectSQL(do IGenericDO) (string, []string) { //{{{
 	return sql, values
 }                                                                                              //}}}
 func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (int64, error) { //{{{
-	sql := getInsertAllSQL(table, len(data))
+	sql := GetInsertAllSQL(table, len(data))
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
@@ -159,7 +159,7 @@ func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (i
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, values := getInsertSQL(do)
+	sql, values := GetInsertSQL(do)
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
@@ -182,7 +182,7 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, columns := getUpdateSQL(do)
+	sql, columns := GetUpdateSQL(do)
 
 	stmt, err := tx.Prepare(sql)
 
@@ -208,7 +208,7 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, columns := getDeleteSQL(do)
+	sql, columns := GetDeleteSQL(do)
 
 	stmt, err := tx.Prepare(sql)
 
@@ -234,7 +234,7 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                           //}}}
 func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
-	sqlstr, values := getSelectSQL(do)
+	sqlstr, values := GetSelectSQL(do)
 	stmt, err := dao.db.Prepare(sqlstr)
 
 	if err != nil {

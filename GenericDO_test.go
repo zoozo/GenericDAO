@@ -55,7 +55,7 @@ func TestGetSelectSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.SetPKey("column_b", 2)
-	ret, _ := getSelectSQL(do)
+	ret, _ := GetSelectSQL(do)
 	t.Log(ret)
 	if ret == "select * from table where column_a = ?  and column_b = ? " {
 		t.Log("GetSelectSQL Testing OK")
@@ -68,7 +68,7 @@ func TestInsertSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.Set("column_b", 2)
-	ret, _ := getInsertSQL(do)
+	ret, _ := GetInsertSQL(do)
 	t.Log("[" + ret + "]")
 	if ret == "insert into table (column_a,column_b) values (?,?)" {
 		t.Log("GetInsertSQL Testing OK")
@@ -81,7 +81,7 @@ func TestUpdateSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.Set("column_b", 2)
-	ret, _ := getUpdateSQL(do)
+	ret, _ := GetUpdateSQL(do)
 	t.Log(ret)
 	if ret == "update table set column_b = ? where column_a = ?" {
 		t.Log("GetUpdateSQL Testing OK")
@@ -94,7 +94,7 @@ func TestDeleteSQL(t *testing.T) { //{{{
 	do.Init("table")
 	do.SetPKey("column_a", "a")
 	do.SetPKey("column_b", 2)
-	ret, _ := getDeleteSQL(do)
+	ret, _ := GetDeleteSQL(do)
 	t.Log(ret)
 	if ret == "delete from table where column_a = ? and column_b = ?" {
 		t.Log("GetDeleteSQL Testing OK")
