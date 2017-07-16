@@ -157,18 +157,20 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 		return 0, err
 	}
 
-	data := do.GetData()
+	data := do.GetDelta()
 	var args []interface{}
 
 	for _, v := range values {
 		args = append(args, data[v])
 	}
+	//log.Println(sql)
+	//log.Println(args)
 	result, err := stmt.Exec(args...)
-	count, _ := result.RowsAffected()
 	defer stmt.Close()
 	if err != nil {
 		return 0, err
 	}
+	count, _ := result.RowsAffected()
 
 	return count, nil
 }                                                                        //}}}
@@ -187,14 +189,15 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	for _, v := range columns {
 		args = append(args, data[v])
 	}
+	//log.Println(sql)
+	//log.Println(args)
 	result, err := stmt.Exec(args...)
 	defer stmt.Close()
-
-	count, _ := result.RowsAffected()
 
 	if err != nil {
 		return 0, err
 	}
+	count, _ := result.RowsAffected()
 
 	return count, nil
 }                                                                        //}}}
@@ -218,11 +221,10 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	result, err := stmt.Exec(args...)
 	defer stmt.Close()
 
-	count, _ := result.RowsAffected()
-
 	if err != nil {
 		return 0, err
 	}
+	count, _ := result.RowsAffected()
 
 	return count, nil
 }                                                           //}}}
