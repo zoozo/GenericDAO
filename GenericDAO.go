@@ -227,6 +227,42 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	count, _ := result.RowsAffected()
 
 	return count, nil
+}                                                                             //}}}
+func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
+	sqlstr, values := GetSelectSQL(do)
+	stmt, err := tx.Prepare(sqlstr)
+
+	if err != nil {
+		return false, err
+	}
+
+	pkeys := do.GetPKeys()
+	var args []interface{}
+
+	for _, v := range values {
+		args = append(args, pkeys[v])
+	}
+	var rows *sql.Rows
+	rows, err = stmt.Query(args...)
+
+	if err != nil {
+		return false, err
+	}
+	ret := dao.setRow(rows)
+	if len(ret) <= 0 {
+		return false, nil
+	}
+
+	for k, v := range ret[0] {
+		if _, ok := pkeys[k]; ok {
+			continue
+		}
+		do.Set(k, v)
+	}
+
+	stmt.Close()
+
+	return true, nil
 }                                                           //}}}
 func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	sqlstr, values := GetSelectSQL(do)
