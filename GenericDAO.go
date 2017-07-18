@@ -2,15 +2,11 @@ package zdao
 
 import (
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
-	//"log"
 	"strings"
 )
 
 type IGenericDO interface {
-	//	Init(table string)
 	GetTable() string
-	//	SetPKey(key string, value interface{})
 	Set(key string, value interface{})
 	GetPKey(key string) interface{}
 	Get(key string) interface{}
