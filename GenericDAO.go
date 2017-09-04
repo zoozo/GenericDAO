@@ -2,7 +2,16 @@ package zdao
 
 import (
 	"database/sql"
+	"strconv"
 	"strings"
+)
+
+type DriverType int
+
+const (
+	MYSQL = iota
+	MSSQL = iota
+	OCI8  = iota
 )
 
 type IGenericDO interface {
@@ -15,7 +24,8 @@ type IGenericDO interface {
 	GetDelta() map[string]interface{}
 }
 type GenericDAO struct {
-	db *sql.DB
+	db     *sql.DB
+	driver DriverType
 }
 
 func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
@@ -23,6 +33,9 @@ func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
 }                                                 //}}}
 func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
 	return dao.db.Begin()
+}                                                         //}}}
+func (dao *GenericDAO) SetDriver(driverType DriverType) { //{{{
+	dao.driver = driverType
 }                                       //}}}
 func (dao GenericDAO) GetDB() *sql.DB { //{{{
 	return dao.db
@@ -57,31 +70,39 @@ func (dao GenericDAO) SetRow(rows *sql.Rows) (ret []map[string]interface{}) { //
 	return ret
 } //}}}
 
-func GetInsertSQL(do IGenericDO) (string, []string) { //{{{
+func GetInsertSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "insert into " + do.GetTable()
 	data := do.GetDelta()
 
 	var columns, values []string
 	for k := range data {
 		values = append(values, k)
-		columns = append(columns, "?")
+		if driverType == OCI8 {
+			columns = append(columns, ":"+k)
+		} else {
+			columns = append(columns, "?")
+		}
 	}
 	sql += " (" + strings.Join(values, ",") + ") values (" + strings.Join(columns, ",") + ")"
 
 	return sql, values
-}                                                     //}}}
-func GetInsertAllSQL(table string, size int) string { //{{{
+}                                                                            //}}}
+func GetInsertAllSQL(table string, size int, driverType DriverType) string { //{{{
 	sql := "insert into " + table
 
 	var columns []string
 	for i := 0; i < size; i++ {
-		columns = append(columns, "?")
+		if driverType == OCI8 {
+			columns = append(columns, ":"+strconv.Itoa(i))
+		} else {
+			columns = append(columns, "?")
+		}
 	}
 	sql += " values (" + strings.Join(columns, ",") + ")"
 
 	return sql
-}                                                     //}}}
-func GetUpdateSQL(do IGenericDO) (string, []string) { //{{{
+}                                                                            //}}}
+func GetUpdateSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "update " + do.GetTable()
 	sql += " set "
 	var columns, values []string
@@ -89,7 +110,11 @@ func GetUpdateSQL(do IGenericDO) (string, []string) { //{{{
 	data := do.GetData()
 	for k := range data {
 		values = append(values, k)
-		columns = append(columns, k+" = ?")
+		if driverType == OCI8 {
+			columns = append(columns, k+" = :"+k)
+		} else {
+			columns = append(columns, k+" = ?")
+		}
 	}
 	sql += strings.Join(columns, ",") + " where "
 
@@ -97,39 +122,51 @@ func GetUpdateSQL(do IGenericDO) (string, []string) { //{{{
 	columns = nil
 	for k := range keys {
 		values = append(values, k)
-		columns = append(columns, k+" = ?")
+		if driverType == OCI8 {
+			columns = append(columns, k+" = :"+k)
+		} else {
+			columns = append(columns, k+" = ?")
+		}
 	}
 	sql += strings.Join(columns, " and ")
 
 	return sql, values
-}                                                     //}}}
-func GetDeleteSQL(do IGenericDO) (string, []string) { //{{{
+}                                                                            //}}}
+func GetDeleteSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "delete from " + do.GetTable() + " where "
 	var columns, values []string
 
 	keys := do.GetPKeys()
 	for k := range keys {
 		values = append(values, k)
-		columns = append(columns, k+" = ?")
+		if driverType == OCI8 {
+			columns = append(columns, k+" = :"+k)
+		} else {
+			columns = append(columns, k+" = ?")
+		}
 	}
 	sql += strings.Join(columns, " and ")
 
 	return sql, values
-}                                                     //}}}
-func GetSelectSQL(do IGenericDO) (string, []string) { //{{{
+}                                                                            //}}}
+func GetSelectSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "select * from " + do.GetTable() + " where "
 	pkeys := do.GetPKeys()
 
 	var condition, values []string
 	for k := range pkeys {
 		values = append(values, k)
-		condition = append(condition, k+" = ? ")
+		if driverType == OCI8 {
+			condition = append(condition, k+" = :"+k)
+		} else {
+			condition = append(condition, k+" = ? ")
+		}
 	}
 	sql += strings.Join(condition, " and ")
 	return sql, values
 }                                                                                              //}}}
 func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (int64, error) { //{{{
-	sql := GetInsertAllSQL(table, len(data))
+	sql := GetInsertAllSQL(table, len(data), dao.driver)
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
@@ -146,7 +183,7 @@ func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (i
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, values := GetInsertSQL(do)
+	sql, values := GetInsertSQL(do, dao.driver)
 	stmt, err := tx.Prepare(sql)
 
 	if err != nil {
@@ -171,7 +208,7 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, columns := GetUpdateSQL(do)
+	sql, columns := GetUpdateSQL(do, dao.driver)
 
 	stmt, err := tx.Prepare(sql)
 
@@ -198,7 +235,7 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                                        //}}}
 func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
-	sql, columns := GetDeleteSQL(do)
+	sql, columns := GetDeleteSQL(do, dao.driver)
 
 	//log.Println(sql)
 	stmt, err := tx.Prepare(sql)
@@ -225,7 +262,7 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	return count, nil
 }                                                                             //}}}
 func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
-	sqlstr, values := GetSelectSQL(do)
+	sqlstr, values := GetSelectSQL(do, dao.driver)
 	stmt, err := tx.Prepare(sqlstr)
 
 	if err != nil {
@@ -261,7 +298,7 @@ func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //
 	return true, nil
 }                                                           //}}}
 func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
-	sqlstr, values := GetSelectSQL(do)
+	sqlstr, values := GetSelectSQL(do, dao.driver)
 	stmt, err := dao.db.Prepare(sqlstr)
 
 	if err != nil {
@@ -307,7 +344,11 @@ func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]int
 	var args []interface{}
 	if len(conditions) > 0 {
 		for k, v := range conditions {
-			sql_conditions = append(sql_conditions, k+" = ?")
+			if dao.driver == OCI8 {
+				sql_conditions = append(sql_conditions, k+" = :"+k)
+			} else {
+				sql_conditions = append(sql_conditions, k+" = ?")
+			}
 			args = append(args, v)
 		}
 	}
