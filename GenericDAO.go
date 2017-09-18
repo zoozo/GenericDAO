@@ -2,6 +2,7 @@ package zdao
 
 import (
 	"database/sql"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -26,8 +27,12 @@ type IGenericDO interface {
 type GenericDAO struct {
 	db     *sql.DB
 	driver DriverType
+	debug  bool
 }
 
+func (dao *GenericDAO) SetDebug() { //{{{
+	dao.debug = true
+}                                          //}}}
 func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
 	dao.db = db
 }                                                 //}}}
@@ -196,8 +201,10 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	for _, v := range values {
 		args = append(args, data[v])
 	}
-	//log.Println(sql)
-	//log.Println(args)
+	if dao.debug {
+		log.Println("insert sql:", sql)
+		log.Println("insert args:", args)
+	}
 	result, err := stmt.Exec(args...)
 	defer stmt.Close()
 	if err != nil {
