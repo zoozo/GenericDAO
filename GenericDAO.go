@@ -319,6 +319,10 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 		args = append(args, pkeys[v])
 	}
 	var rows *sql.Rows
+	if dao.debug {
+		log.Println("sql:", sqlstr)
+		log.Println("args:", args)
+	}
 	rows, err = stmt.Query(args...)
 
 	if err != nil {
@@ -389,6 +393,10 @@ func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]int
 	}
 
 	//log.Println(sqlstr)
+	if dao.debug {
+		log.Println("sql:", sqlstr)
+		log.Println("args:", args)
+	}
 	stmt, err := dao.db.Prepare(sqlstr)
 
 	if err != nil {
