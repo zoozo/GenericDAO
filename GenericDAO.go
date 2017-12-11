@@ -15,6 +15,19 @@ const (
 	OCI8  = iota
 )
 
+const (
+	EQ = "EQ"
+	IN = "IN"
+	NE = "NE"
+	NI = "NI"
+)
+
+type Condition struct {
+	Key      string
+	Operator string
+	Value    interface{}
+}
+
 type IGenericDO interface {
 	GetTable() string
 	Set(key string, value interface{})
@@ -27,24 +40,25 @@ type IGenericDO interface {
 type GenericDAO struct {
 	db     *sql.DB
 	driver DriverType
+	idx    int
 	debug  bool
 }
 
 func (dao *GenericDAO) SetDebug() { //{{{
 	dao.debug = true
-}                                          //}}}
+} //}}}
 func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
 	dao.db = db
-}                                                 //}}}
+} //}}}
 func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
 	return dao.db.Begin()
-}                                                         //}}}
+} //}}}
 func (dao *GenericDAO) SetDriver(driverType DriverType) { //{{{
 	dao.driver = driverType
-}                                       //}}}
+} //}}}
 func (dao GenericDAO) GetDB() *sql.DB { //{{{
 	return dao.db
-}                                                                             //}}}
+} //}}}
 func (dao GenericDAO) SetRow(rows *sql.Rows) (ret []map[string]interface{}) { //{{{
 	columns, _ := rows.Columns()
 	count := len(columns)
@@ -91,7 +105,7 @@ func GetInsertSQL(do IGenericDO, driverType DriverType) (string, []string) { //{
 	sql += " (" + strings.Join(values, ",") + ") values (" + strings.Join(columns, ",") + ")"
 
 	return sql, values
-}                                                                            //}}}
+} //}}}
 func GetInsertAllSQL(table string, size int, driverType DriverType) string { //{{{
 	sql := "insert into " + table
 
@@ -106,7 +120,7 @@ func GetInsertAllSQL(table string, size int, driverType DriverType) string { //{
 	sql += " values (" + strings.Join(columns, ",") + ")"
 
 	return sql
-}                                                                            //}}}
+} //}}}
 func GetUpdateSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "update " + do.GetTable()
 	sql += " set "
@@ -136,7 +150,7 @@ func GetUpdateSQL(do IGenericDO, driverType DriverType) (string, []string) { //{
 	sql += strings.Join(columns, " and ")
 
 	return sql, values
-}                                                                            //}}}
+} //}}}
 func GetDeleteSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "delete from " + do.GetTable() + " where "
 	var columns, values []string
@@ -153,7 +167,7 @@ func GetDeleteSQL(do IGenericDO, driverType DriverType) (string, []string) { //{
 	sql += strings.Join(columns, " and ")
 
 	return sql, values
-}                                                                            //}}}
+} //}}}
 func GetSelectSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
 	sql := "select * from " + do.GetTable() + " where "
 	pkeys := do.GetPKeys()
@@ -169,7 +183,7 @@ func GetSelectSQL(do IGenericDO, driverType DriverType) (string, []string) { //{
 	}
 	sql += strings.Join(condition, " and ")
 	return sql, values
-}                                                                                              //}}}
+} //}}}
 func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (int64, error) { //{{{
 	sql := GetInsertAllSQL(table, len(data), dao.driver)
 	stmt, err := tx.Prepare(sql)
@@ -186,7 +200,7 @@ func (dao GenericDAO) InsertAll(tx *sql.Tx, table string, data []interface{}) (i
 	}
 
 	return count, nil
-}                                                                        //}}}
+} //}}}
 func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, values := GetInsertSQL(do, dao.driver)
 	stmt, err := tx.Prepare(sql)
@@ -213,7 +227,7 @@ func (dao GenericDAO) Insert(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	count, _ := result.RowsAffected()
 
 	return count, nil
-}                                                                        //}}}
+} //}}}
 func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, columns := GetUpdateSQL(do, dao.driver)
 
@@ -240,7 +254,7 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	count, _ := result.RowsAffected()
 
 	return count, nil
-}                                                                        //}}}
+} //}}}
 func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	sql, columns := GetDeleteSQL(do, dao.driver)
 
@@ -267,7 +281,7 @@ func (dao GenericDAO) Delete(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	count, _ := result.RowsAffected()
 
 	return count, nil
-}                                                                             //}}}
+} //}}}
 func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //{{{
 	sqlstr, values := GetSelectSQL(do, dao.driver)
 	stmt, err := tx.Prepare(sqlstr)
@@ -303,7 +317,7 @@ func (dao GenericDAO) SelectWithTx(tx *sql.Tx, do IGenericDO) (bool, error) { //
 	stmt.Close()
 
 	return true, nil
-}                                                           //}}}
+} //}}}
 func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	sqlstr, values := GetSelectSQL(do, dao.driver)
 	stmt, err := dao.db.Prepare(sqlstr)
@@ -343,12 +357,128 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	stmt.Close()
 
 	return true, nil
-}                                                                                                                                                              //}}}
-func (dao GenericDAO) SelectAllList(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+} //}}}
+func (dao GenericDAO) SelectAllList(table string, conditions []Condition, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
 	sql := "select * "
 	return dao.SelectList(sql, table, conditions, nil, orders, sort)
-}                                                                                                                                                                                            //}}}
-func (dao GenericDAO) SelectList(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
+} //}}}
+func (dao *GenericDAO) getBindString() string { //{{{
+	if dao.driver == OCI8 {
+		dao.idx++
+		return ":" + strconv.Itoa(dao.idx)
+	} else {
+		return "?"
+	}
+} //}}}
+func (dao *GenericDAO) Arrange(c *Condition, sql_conditions *[]string, args *[]interface{}) { //{{{
+	key := c.Key
+	switch c.Operator {
+	case EQ:
+		key += " = " + dao.getBindString()
+		*sql_conditions = append(*sql_conditions, key)
+		*args = append(*args, c.Value)
+	case IN:
+		values := strings.Split(c.Value.(string), ",")
+		if len(values) > 0 {
+			var keys []string
+			for _, v := range values {
+				*args = append(*args, v)
+				keys = append(keys, dao.getBindString())
+			}
+			key += " in (" + strings.Join(keys, ",") + ")"
+			*sql_conditions = append(*sql_conditions, key)
+		}
+	case NE:
+		key += " != " + dao.getBindString()
+		*sql_conditions = append(*sql_conditions, key)
+		*args = append(*args, c.Value)
+	case NI:
+		values := strings.Split(c.Value.(string), ",")
+		if len(values) > 0 {
+			var keys []string
+			for _, v := range values {
+				*args = append(*args, v)
+				keys = append(keys, dao.getBindString())
+			}
+			key += " not in (" + strings.Join(keys, ",") + ")"
+			*sql_conditions = append(*sql_conditions, key)
+		}
+	default:
+	}
+
+} //}}}
+func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...string) (string, []interface{}) { //{{{
+	dao.idx = 0
+	sqlstr += " from " + table
+
+	var sql_conditions, sql_orders, sql_groups []string
+	var args []interface{}
+	if len(conditions) > 0 {
+		for _, v := range conditions {
+			dao.Arrange(&v, &sql_conditions, &args)
+
+		}
+	}
+	if len(groups) > 0 {
+		for _, v := range groups {
+			sql_groups = append(sql_groups, v)
+		}
+	}
+	if len(orders) > 0 {
+		for _, v := range orders {
+			sql_orders = append(sql_orders, v)
+		}
+	}
+	if len(sql_conditions) > 0 {
+		sqlstr += " where " + strings.Join(sql_conditions, " and ")
+	}
+	if len(sql_groups) > 0 {
+		sqlstr += " group by " + strings.Join(sql_groups, ",")
+	}
+	if len(sql_orders) > 0 {
+		sqlstr += " order by " + strings.Join(sql_orders, ",")
+	}
+
+	if sort != "" {
+		sqlstr += " " + sort
+	}
+	if len(limit) == 1 {
+		sqlstr += " limit " + limit[0]
+	} else if len(limit) == 2 {
+		sqlstr += " limit " + limit[1] + "," + limit[0]
+	}
+
+	//log.Println(sqlstr)
+	if dao.debug {
+		log.Println("sql:", sqlstr)
+		log.Println("args:", args)
+	}
+	return sqlstr, args
+} //}}}
+func (dao GenericDAO) SelectList(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
+	sqlstr, args := dao.GetSelectListSQL(sqlstr, table, conditions, groups, orders, sort, limit...)
+	stmt, err := dao.db.Prepare(sqlstr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var rows *sql.Rows
+	rows, err = stmt.Query(args...)
+	defer stmt.Close()
+
+	if err != nil {
+		return nil, err
+	}
+	ret = dao.SetRow(rows)
+
+	return ret, nil
+} //}}}
+func (dao GenericDAO) SelectAllList2(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+	sql := "select * "
+	return dao.SelectList2(sql, table, conditions, nil, orders, sort)
+} //}}}
+func (dao GenericDAO) SelectList2(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
 	sqlstr += " from " + table
 
 	var sql_conditions, sql_orders, sql_groups []string
