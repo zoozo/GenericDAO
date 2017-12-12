@@ -20,6 +20,10 @@ const (
 	IN = "IN"
 	NE = "NE"
 	NI = "NI"
+	GT = "GT"
+	GE = "GE"
+	LT = "LT"
+	LE = "LE"
 )
 
 type Condition struct {
@@ -372,12 +376,24 @@ func (dao *GenericDAO) getBindString() string { //{{{
 } //}}}
 func (dao *GenericDAO) Arrange(c *Condition, sql_conditions *[]string, args *[]interface{}) { //{{{
 	key := c.Key
-	switch c.Operator {
-	case EQ:
-		key += " = " + dao.getBindString()
+	if c.Operator == EQ || c.Operator == NE || c.Operator == GT || c.Operator == GE || c.Operator == LT || c.Operator == LE {
+		switch c.Operator {
+		case EQ:
+			key += " = " + dao.getBindString()
+		case NE:
+			key += " != " + dao.getBindString()
+		case GT:
+			key += " > " + dao.getBindString()
+		case GE:
+			key += " >= " + dao.getBindString()
+		case LT:
+			key += " < " + dao.getBindString()
+		case LE:
+			key += " <= " + dao.getBindString()
+		}
 		*sql_conditions = append(*sql_conditions, key)
 		*args = append(*args, c.Value)
-	case IN:
+	} else if c.Operator == NI || c.Operator == IN {
 		values := strings.Split(c.Value.(string), ",")
 		if len(values) > 0 {
 			var keys []string
@@ -385,27 +401,14 @@ func (dao *GenericDAO) Arrange(c *Condition, sql_conditions *[]string, args *[]i
 				*args = append(*args, v)
 				keys = append(keys, dao.getBindString())
 			}
-			key += " in (" + strings.Join(keys, ",") + ")"
-			*sql_conditions = append(*sql_conditions, key)
-		}
-	case NE:
-		key += " != " + dao.getBindString()
-		*sql_conditions = append(*sql_conditions, key)
-		*args = append(*args, c.Value)
-	case NI:
-		values := strings.Split(c.Value.(string), ",")
-		if len(values) > 0 {
-			var keys []string
-			for _, v := range values {
-				*args = append(*args, v)
-				keys = append(keys, dao.getBindString())
+			if c.Operator == IN {
+				key += " in (" + strings.Join(keys, ",") + ")"
+			} else {
+				key += " not in (" + strings.Join(keys, ",") + ")"
 			}
-			key += " not in (" + strings.Join(keys, ",") + ")"
 			*sql_conditions = append(*sql_conditions, key)
 		}
-	default:
 	}
-
 } //}}}
 func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...string) (string, []interface{}) { //{{{
 	dao.idx = 0
