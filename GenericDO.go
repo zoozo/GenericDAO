@@ -24,6 +24,10 @@ func (do *GenericDO) Set(key string, value interface{}) {
 	do.data[key] = value
 	do.delta[key] = value
 }
+func (do *GenericDO) SetData(key string, value interface{}) {
+	do.data[key] = value
+	do.delta[key] = value
+}
 func (do GenericDO) GetPKey(key string) interface{} {
 	return do.pkeys[key]
 }
