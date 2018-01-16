@@ -46,6 +46,7 @@ type GenericDAO struct {
 	driver DriverType
 	idx    int
 	debug  bool
+	args   []interface{}
 }
 
 func (dao *GenericDAO) SetDebug() { //{{{
@@ -53,6 +54,11 @@ func (dao *GenericDAO) SetDebug() { //{{{
 } //}}}
 func (dao *GenericDAO) SetDB(db *sql.DB) { //{{{
 	dao.db = db
+} //}}}
+func (dao *GenericDAO) SetArgs(args []interface{}) { //{{{
+	//if args != nil {
+	dao.args = args
+	//}
 } //}}}
 func (dao *GenericDAO) Begin() (*sql.Tx, error) { //{{{
 	return dao.db.Begin()
@@ -247,8 +253,10 @@ func (dao GenericDAO) Update(tx *sql.Tx, do IGenericDO) (int64, error) { //{{{
 	for _, v := range columns {
 		args = append(args, data[v])
 	}
-	//log.Println(sql)
-	//log.Println(args)
+	if dao.debug {
+		log.Println("SQL:", sql)
+		log.Println("ARGS:", args)
+	}
 	result, err := stmt.Exec(args...)
 	defer stmt.Close()
 
@@ -362,7 +370,7 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 
 	return true, nil
 } //}}}
-func (dao GenericDAO) SelectAllList(table string, conditions []Condition, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
+func (dao *GenericDAO) SelectAllList(table string, conditions []Condition, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
 	sql := "select * "
 	return dao.SelectList(sql, table, conditions, nil, orders, sort)
 } //}}}
@@ -410,7 +418,7 @@ func (dao *GenericDAO) Arrange(c *Condition, sql_conditions *[]string, args *[]i
 		}
 	}
 } //}}}
-func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...string) (string, []interface{}) { //{{{
+func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...int) (string, []interface{}) { //{{{
 	dao.idx = 0
 	sqlstr += " from " + table
 
@@ -446,9 +454,9 @@ func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condit
 		sqlstr += " " + sort
 	}
 	if len(limit) == 1 {
-		sqlstr += " limit " + limit[0]
+		sqlstr += " limit " + strconv.Itoa(limit[0])
 	} else if len(limit) == 2 {
-		sqlstr += " limit " + limit[1] + "," + limit[0]
+		sqlstr += " limit " + strconv.Itoa(limit[1]) + "," + strconv.Itoa(limit[0])
 	}
 
 	//log.Println(sqlstr)
@@ -458,7 +466,7 @@ func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condit
 	}
 	return sqlstr, args
 } //}}}
-func (dao GenericDAO) SelectList(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
+func (dao *GenericDAO) SelectList(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...int) (ret []map[string]interface{}, err error) { //{{{
 	sqlstr, args := dao.GetSelectListSQL(sqlstr, table, conditions, groups, orders, sort, limit...)
 	stmt, err := dao.db.Prepare(sqlstr)
 
@@ -467,7 +475,18 @@ func (dao GenericDAO) SelectList(sqlstr, table string, conditions []Condition, g
 	}
 
 	var rows *sql.Rows
-	rows, err = stmt.Query(args...)
+	if dao.args == nil {
+		dao.args = args
+	} else {
+		dao.args = append(dao.args, args...)
+	}
+	if dao.debug {
+		log.Println("SelectList sql:", sqlstr)
+		log.Println("SelectList args:", dao.args)
+	}
+	rows, err = stmt.Query(dao.args...)
+	dao.args = nil
+
 	defer stmt.Close()
 
 	if err != nil {
