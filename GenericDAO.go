@@ -371,7 +371,7 @@ func (dao GenericDAO) Select(do IGenericDO) (bool, error) { //{{{
 	return true, nil
 } //}}}
 func (dao *GenericDAO) SelectAllList(table string, conditions []Condition, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
-	sql := "select * "
+	sql := " * "
 	return dao.SelectList(sql, table, conditions, nil, orders, sort)
 } //}}}
 func (dao *GenericDAO) getBindString() string { //{{{
@@ -419,6 +419,10 @@ func (dao *GenericDAO) Arrange(c *Condition, sql_conditions *[]string, args *[]i
 	}
 } //}}}
 func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...int) (string, []interface{}) { //{{{
+	/*
+		if dao.driver == MSSQL && len(limit) > 1 &&  {
+		}
+	*/
 	dao.idx = 0
 	sqlstr += " from " + table
 
@@ -446,17 +450,47 @@ func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condit
 	if len(sql_groups) > 0 {
 		sqlstr += " group by " + strings.Join(sql_groups, ",")
 	}
-	if len(sql_orders) > 0 {
-		sqlstr += " order by " + strings.Join(sql_orders, ",")
-	}
+	switch dao.driver {
+	case MYSQL:
+		if len(sql_orders) > 0 {
+			sqlstr += " order by " + strings.Join(sql_orders, ",")
+		}
 
-	if sort != "" {
-		sqlstr += " " + sort
+		if sort != "" {
+			sqlstr += " " + sort
+		}
+		sqlstr = "select " + sqlstr
+	case MSSQL:
+		if len(sql_orders) > 0 {
+			if sort != "" {
+				sort = " " + sort
+			}
+			sqlstr = "select ROW_NUMBER() over(order by " + strings.Join(sql_orders, ",") + sort + ") as rownum, " + sqlstr
+		} else {
+			sqlstr = "select " + sqlstr
+			if len(limit) > 1 {
+				limit = limit[:1]
+			}
+		}
+
 	}
 	if len(limit) == 1 {
-		sqlstr += " limit " + strconv.Itoa(limit[0])
+		switch dao.driver {
+		case MYSQL:
+			sqlstr += " limit " + strconv.Itoa(limit[0])
+		case MSSQL:
+			sqlstr = "select top " + strconv.Itoa(limit[0]) + " * from (" + sqlstr + ") a"
+		}
 	} else if len(limit) == 2 {
-		sqlstr += " limit " + strconv.Itoa(limit[1]) + "," + strconv.Itoa(limit[0])
+		switch dao.driver {
+		case MYSQL:
+			sqlstr += " limit " + strconv.Itoa(limit[1]) + "," + strconv.Itoa(limit[0])
+		case MSSQL:
+			from := limit[1] + 1
+			to := from + limit[0] - 1
+			sqlstr = "select * from (" + sqlstr + ") a where rownum between " + strconv.Itoa(from) + " and " + strconv.Itoa(to)
+
+		}
 	}
 
 	//log.Println(sqlstr)
@@ -468,6 +502,10 @@ func (dao GenericDAO) GetSelectListSQL(sqlstr, table string, conditions []Condit
 } //}}}
 func (dao *GenericDAO) SelectList(sqlstr, table string, conditions []Condition, groups, orders []string, sort string, limit ...int) (ret []map[string]interface{}, err error) { //{{{
 	sqlstr, args := dao.GetSelectListSQL(sqlstr, table, conditions, groups, orders, sort, limit...)
+	if dao.debug {
+		log.Println("SelectList sql:", sqlstr)
+		log.Println("SelectList args:", dao.args)
+	}
 	stmt, err := dao.db.Prepare(sqlstr)
 
 	if err != nil {
@@ -480,83 +518,9 @@ func (dao *GenericDAO) SelectList(sqlstr, table string, conditions []Condition, 
 	} else {
 		dao.args = append(dao.args, args...)
 	}
-	if dao.debug {
-		log.Println("SelectList sql:", sqlstr)
-		log.Println("SelectList args:", dao.args)
-	}
 	rows, err = stmt.Query(dao.args...)
 	dao.args = nil
 
-	defer stmt.Close()
-
-	if err != nil {
-		return nil, err
-	}
-	ret = dao.SetRow(rows)
-
-	return ret, nil
-} //}}}
-func (dao GenericDAO) SelectAllList2(table string, conditions map[string]interface{}, orders []string, sort string) (ret []map[string]interface{}, err error) { //{{{
-	sql := "select * "
-	return dao.SelectList2(sql, table, conditions, nil, orders, sort)
-} //}}}
-func (dao GenericDAO) SelectList2(sqlstr, table string, conditions map[string]interface{}, groups, orders []string, sort string, limit ...string) (ret []map[string]interface{}, err error) { //{{{
-	sqlstr += " from " + table
-
-	var sql_conditions, sql_orders, sql_groups []string
-	var args []interface{}
-	if len(conditions) > 0 {
-		for k, v := range conditions {
-			if dao.driver == OCI8 {
-				sql_conditions = append(sql_conditions, k+" = :"+k)
-			} else {
-				sql_conditions = append(sql_conditions, k+" = ?")
-			}
-			args = append(args, v)
-		}
-	}
-	if len(groups) > 0 {
-		for _, v := range groups {
-			sql_groups = append(sql_groups, v)
-		}
-	}
-	if len(orders) > 0 {
-		for _, v := range orders {
-			sql_orders = append(sql_orders, v)
-		}
-	}
-	if len(sql_conditions) > 0 {
-		sqlstr += " where " + strings.Join(sql_conditions, " and ")
-	}
-	if len(sql_groups) > 0 {
-		sqlstr += " group by " + strings.Join(sql_groups, ",")
-	}
-	if len(sql_orders) > 0 {
-		sqlstr += " order by " + strings.Join(sql_orders, ",")
-	}
-
-	if sort != "" {
-		sqlstr += " " + sort
-	}
-	if len(limit) == 1 {
-		sqlstr += " limit " + limit[0]
-	} else if len(limit) == 2 {
-		sqlstr += " limit " + limit[1] + "," + limit[0]
-	}
-
-	//log.Println(sqlstr)
-	if dao.debug {
-		log.Println("sql:", sqlstr)
-		log.Println("args:", args)
-	}
-	stmt, err := dao.db.Prepare(sqlstr)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var rows *sql.Rows
-	rows, err = stmt.Query(args...)
 	defer stmt.Close()
 
 	if err != nil {
