@@ -162,19 +162,22 @@ func GetUpdateSQL(do IGenericDO, driverType DriverType) (string, []string) { //{
 	return sql, values
 } //}}}
 func GetDeleteSQL(do IGenericDO, driverType DriverType) (string, []string) { //{{{
-	sql := "delete from " + do.GetTable() + " where "
+	sql := "delete from " + do.GetTable()
 	var columns, values []string
 
 	keys := do.GetPKeys()
-	for k := range keys {
-		values = append(values, k)
-		if driverType == OCI8 {
-			columns = append(columns, k+" = :"+k)
-		} else {
-			columns = append(columns, k+" = ?")
+	if len(keys) > 0 {
+		sql += " where "
+		for k := range keys {
+			values = append(values, k)
+			if driverType == OCI8 {
+				columns = append(columns, k+" = :"+k)
+			} else {
+				columns = append(columns, k+" = ?")
+			}
 		}
+		sql += strings.Join(columns, " and ")
 	}
-	sql += strings.Join(columns, " and ")
 
 	return sql, values
 } //}}}
