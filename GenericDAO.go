@@ -35,6 +35,7 @@ type Condition struct {
 type IGenericDO interface {
 	GetTable() string
 	Set(key string, value interface{})
+	SetPKey(key string, value interface{})
 	GetPKey(key string) interface{}
 	Get(key string) interface{}
 	GetPKeys() map[string]interface{}
